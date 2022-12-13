@@ -5,32 +5,33 @@ import copy
 
 pygame.font.init()
 Window = pygame.display.set_mode((500, 500))
-pygame.display.set_caption("SUDOKU")
+pygame.display.set_caption("SUDOKU SOLVER")
 
-col = 0
 row = 0
+col = 0
 diff = 500 / 9
 value = 0
 default_grid =[
-            [7, 0, 0, 0, 0, 2, 1, 5, 0],
-            [0, 0, 1, 0, 0, 0, 9, 2, 0],
-            [0, 5, 3, 0, 7, 1, 4, 0, 0],
-            [0, 0, 4, 0, 0, 0, 0, 9, 8],
-            [1, 0, 0, 8, 0, 4, 6, 0, 0],
-            [9, 0, 0, 0, 3, 0, 0, 0, 0],
-            [0, 2, 0, 0, 0, 3, 8, 0, 0],
-            [8, 6, 5, 0, 4, 0, 0, 0, 2],
-            [0, 0, 0, 6, 0, 0, 5, 7, 0]
+            [0, 7, 0, 0, 0, 8, 0, 2, 9],
+            [0, 0, 2, 0, 0, 0, 0, 0, 4],
+            [8, 5, 4, 0, 2, 0, 0, 0, 0],
+            [0, 0, 8, 3, 7, 4, 2, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 3, 2, 6, 1, 7, 0, 0],
+            [0, 0, 0, 0, 9, 0, 6, 1, 2],
+            [2, 0, 0, 0, 0, 0, 4, 0, 0],
+            [1, 3, 0, 6, 0, 0, 0, 7, 0]
         ]
+checked_pairs = []
+checked_triples = []
 font = pygame.font.SysFont("comicsans", 40)
 font1 = pygame.font.SysFont("comicsans", 20)
 
 
 def cord(pos):
-    global col
-    col = pos[0] // diff
-    global row
+    global row, col
     row = pos[1] // diff
+    col = pos[0] // diff
 
 def highlight_box():
     for k in range(2):
@@ -94,19 +95,31 @@ def valid_value(grid, k, l, value, diagonal_constraint):
 
     return True
 
-def solve_pencilmark(pencilmark_grid, diagonal_constraint):
-    print(10 * '=', "Solving with pencilmarks!", 10 * '=')
-    #Get all options for the empty cells
-    options = {}
-
+def update_options(grid, options, diagonal_constraint):
     for r in range(9):
         for c in range(9):
-            if pencilmark_grid[r][c] == 0:
+            if grid[r][c] == 0:
                 key_name = str(f'r{r}c{c}')
-                options[key_name] = []
+
                 for num in range(1, 10):
-                    if valid_value(pencilmark_grid, r, c, num, diagonal_constraint):
-                        options[key_name].append(num)
+                    if not valid_value(grid, r, c, num, diagonal_constraint):
+                        if num in options[key_name]:
+                            options[key_name].remove(num)
+
+    return options
+
+def solve_pencilmark(pencilmark_grid, diagonal_constraint, options = {},):
+    print(10 * '=', "Solving with pencilmarks!", 10 * '=')
+    #Get all options for the empty cells
+    if options == {}:
+        for r in range(9):
+            for c in range(9):
+                if pencilmark_grid[r][c] == 0:
+                    key_name = str(f'r{r}c{c}')
+                    options[key_name] = []
+                    for num in range(1, 10):
+                        if valid_value(pencilmark_grid, r, c, num, diagonal_constraint):
+                            options[key_name].append(num)
 
     #Sort dictionary from low to high
     key_list = list(sorted(options, key = lambda key: len(options[key])))
@@ -117,8 +130,7 @@ def solve_pencilmark(pencilmark_grid, diagonal_constraint):
             r = int(key_list[key][1])
             c = int(key_list[key][3])
             if valid_value(pencilmark_grid, r, c, options[key_list[key]][0], diagonal_constraint):
-                global row
-                global col
+                global row, col
                 row = r
                 col = c
                 fill_value(options[key_list[key]][0])
@@ -130,10 +142,12 @@ def solve_pencilmark(pencilmark_grid, diagonal_constraint):
                 pygame.display.update()
                 pygame.time.delay(20)
                 options.pop(key_list[key])
+                options = update_options(pencilmark_grid, options, diagonal_constraint)
             
             if key != len(key_list) - 1:
                 if len(options[key_list[key + 1]]) == 2:
-                    solve_pencilmark(pencilmark_grid, diagonal_constraint)
+                    solve_pencilmark(pencilmark_grid, diagonal_constraint, options)
+                    return
     
     #Solving the sudoku with hidden singles
     times = sum([row.count(0) for row in pencilmark_grid])
@@ -144,11 +158,12 @@ def solve_pencilmark(pencilmark_grid, diagonal_constraint):
     copy_options = copy.deepcopy(options)
     new_grid, new_options = hidden_singles(pencilmark_grid, options, diagonal_constraint)
 
-    if new_grid != copy_grid or new_options != copy_options:
-        solve_pencilmark(new_grid, diagonal_constraint)
-
     pencilmark_grid = new_grid
     options = new_options
+
+    if new_grid != copy_grid or new_options != copy_options:
+        solve_pencilmark(pencilmark_grid, diagonal_constraint, options)
+        return
 
     #Solving the sudoku with naked pairs
     times = sum([row.count(0) for row in pencilmark_grid])
@@ -158,12 +173,13 @@ def solve_pencilmark(pencilmark_grid, diagonal_constraint):
     copy_grid = copy.deepcopy(pencilmark_grid)
     copy_options = copy.deepcopy(options)
     new_grid, new_options = naked_pairs(pencilmark_grid, options, diagonal_constraint)
-
-    if new_grid != copy_grid or new_options != options:
-        solve_pencilmark(pencilmark_grid, diagonal_constraint)
-
+    
     pencilmark_grid = new_grid
     options = new_options
+
+    if new_grid != copy_grid or new_options != copy_options:
+        solve_pencilmark(pencilmark_grid, diagonal_constraint, options)
+        return
 
     #Solving the sudoku with naked triples
     times = sum([row.count(0) for row in pencilmark_grid])
@@ -176,6 +192,9 @@ def solve_pencilmark(pencilmark_grid, diagonal_constraint):
 
     pencilmark_grid = new_grid
     options = new_options
+
+    if new_grid != copy_grid or new_options != copy_options:
+        solve_pencilmark(pencilmark_grid, diagonal_constraint, options)
 
     #Solving the sudoku with hidden pairs
     times = sum([row.count(0) for row in pencilmark_grid])
@@ -195,21 +214,9 @@ def solve_pencilmark(pencilmark_grid, diagonal_constraint):
 
 def hidden_singles(hidden_singels_grid, hidden_singels_options, diagonal_constraint):
     print('Solving with hidden singels!')
-    key_list = list(sorted(hidden_singels_options, key = lambda key: len(hidden_singels_options[key])))
+    key_list = list(hidden_singels_options.keys())
 
-    for i in range(9):
-        for key in key_list:
-            row_list = []
-            col_list = []
-            box_list = []
-            if key[1] == str(i):
-                row_list.append((key, hidden_singels_options[key]))
-            if key[3] == str(i):
-                col_list.append((key, hidden_singels_options[key]))
-            if (int(key[1]) // 3) * 3 + (int(key[3]) // 3) == i:
-                box_list.append((key, hidden_singels_options[key]))
-
-    def check_list(list):
+    def check_list(list, grid, options, other_list1, other_list2):
         for num in range(1, 10):
             times = sum([cell[1].count(num) for cell in list])
             
@@ -219,159 +226,76 @@ def hidden_singles(hidden_singels_grid, hidden_singels_options, diagonal_constra
                         r = int(cell[0][1])
                         c = int(cell[0][3])
 
-                        if hidden_singels_grid[r][c] == 0:
-                            if valid_value(hidden_singels_grid, r, c, num, diagonal_constraint):
-                                global row
-                                global col
+                        if grid[r][c] == 0:
+                            if valid_value(grid, r, c, num, diagonal_constraint):
+                                global row, col
                                 row = r
                                 col = c                                
-                                fill_value(num)  
+                                fill_value(num)
                                 print(f'{num} in cell {cell[0]}')
-                                hidden_singels_grid[row][col] = num
+                                grid[row][col] = num
                                 Window.fill((255,182,193))
                                 draw_lines()
                                 highlight_box()
                                 pygame.display.update()
                                 pygame.time.delay(20)
-                                hidden_singels_options.pop(cell[0])
+                                options.pop(cell[0])
+                                options = update_options(grid, options, diagonal_constraint)
+
+                                if cell[0] in other_list1:
+                                    other_list1.remove(cell[0])
+                                if cell[0] in other_list2:
+                                    other_list2.remove(cell[0])
 
                         break
+        return grid, options, other_list1, other_list2
 
-            check_list(row_list)
-            check_list(col_list)
-            check_list(box_list)
+    for i in range(9):
+        key_list = list(hidden_singels_options.keys())
+        row_list = []
+        col_list = []
+        box_list = []
 
-    return hidden_singels_grid, hidden_singels_options
-            
+        for key in key_list:
+            if key[1] == str(i):
+                row_list.append((key, hidden_singels_options[key]))
+            if key[3] == str(i):
+                col_list.append((key, hidden_singels_options[key]))
+            if (int(key[1]) // 3) * 3 + (int(key[3]) // 3) == i:
+                box_list.append((key, hidden_singels_options[key]))
 
-                
+        copy_grid = copy.deepcopy(hidden_singels_grid)
+        copy_options = copy.deepcopy(hidden_singels_options)
 
-    # key_list = list(sorted(hidden_singels_options, key = lambda key: len(hidden_singels_options[key])))
-    # row0 = []
-    # row1 = []
-    # row2 = []
-    # row3 = []
-    # row4 = []
-    # row5 = []
-    # row6 = []
-    # row7 = []
-    # row8 = []
-    # col0 = []
-    # col1 = []
-    # col2 = []
-    # col3 = []
-    # col4 = []
-    # col5 = []
-    # col6 = []
-    # col7 = []
-    # col8 = []
-    # box0 = []
-    # box1 = []
-    # box2 = []
-    # box3 = []
-    # box4 = []
-    # box5 = []
-    # box6 = []
-    # box7 = []
-    # box8 = []
+        new_grid, new_options, col_list, box_list = check_list(row_list, hidden_singels_grid, hidden_singels_options, col_list, box_list)
 
-    # for key in range(len(key_list)):
-    #     row = int(key_list[key][1])
-    #     col = int(key_list[key][3])
+        if new_grid != copy_grid or new_options != copy_options:
+            hidden_singels_grid == new_grid
+            hidden_singels_options == new_options
 
-    #     if row == 0:
-    #         row0.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row == 1:
-    #         row1.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row == 2:
-    #         row2.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row == 3:
-    #         row3.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row == 4:
-    #         row4.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row == 5:
-    #         row5.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row == 6:
-    #         row6.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row == 7:
-    #         row7.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row == 8:
-    #         row8.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     if col == 0:
-    #         col0.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif col == 1:
-    #         col1.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif col == 2:
-    #         col2.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif col == 3:
-    #         col3.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif col == 4:
-    #         col4.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif col == 5:
-    #         col5.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif col == 6:
-    #         col6.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif col == 7:
-    #         col7.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif col == 8:
-    #         col8.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     if row < 3 and col < 3:
-    #         box0.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row < 3 and col < 6:
-    #         box1.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row < 3 and col < 9:
-    #         box2.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row < 6 and col < 3:
-    #         box3.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row < 6 and col < 6:
-    #         box4.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row < 6 and col < 9:
-    #         box5.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row < 9 and col < 3:
-    #         box6.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row < 9 and col < 6:
-    #         box7.append((key_list[key], hidden_singels_options[key_list[key]]))
-    #     elif row < 9 and col < 9:
-    #         box8.append((key_list[key], hidden_singels_options[key_list[key]]))
+        copy_grid = copy.deepcopy(hidden_singels_grid)
+        copy_options = copy.deepcopy(hidden_singels_options)
 
-    # def check_list(list):
-    #     for num in range(1, 10):
-    #         times = sum([cell[1].count(num) for cell in list])
-            
-    #         if times == 1:
-    #             for cell in list:
-    #                 if cell[1].count(num) == 1:
-    #                     row = int(cell[0][1])
-    #                     col = int(cell[0][3])
+        new_grid, new_options, row_list, box_list = check_list(col_list, hidden_singels_grid, hidden_singels_options, row_list, box_list)
 
-    #                     if hidden_singels_grid[row][col] == 0:
-    #                         if valid_value(hidden_singels_grid, row, col, num, diagonal_constraint):    
-    #                             print(f'{num} in cell {cell[0]}')
-    #                             hidden_singels_grid[row][col] = num
-    #                             Window.fill((255,182,193))
-    #                             draw_lines()
-    #                             highlight_box()
-    #                             pygame.display.update()
-    #                             pygame.time.delay(20)
-    #                             hidden_singels_options.pop(cell[0])
+        if new_grid != copy_grid or new_options != copy_options:
+            hidden_singels_grid == new_grid
+            hidden_singels_options == new_options
 
-    #                     break
-    
-    # for row in [row0, row1, row2, row3, row4, row5, row6, row7, row8]:
-    #     check_list(row)
-    
-    # for col in [col0, col1, col2, col3, col4, col5, col6, col7, col8]:
-    #     check_list(col)
+        copy_grid = copy.deepcopy(hidden_singels_grid)
+        copy_options = copy.deepcopy(hidden_singels_options)
 
-    # for box in [box0, box1, box2, box3, box4, box5, box6, box7, box8]:
-    #     check_list(box)
+        new_grid, new_options, row_list, col_list = check_list(box_list, hidden_singels_grid, hidden_singels_options, row_list, col_list)
 
-    # return hidden_singels_grid, hidden_singels_options
-        
+        if hidden_singels_grid != copy_grid or hidden_singels_options != copy_options:
+            hidden_singels_grid == new_grid
+            hidden_singels_options == new_options
+
+    return hidden_singels_grid, hidden_singels_options        
 
 def naked_pairs(naked_pairs_grid, naked_pairs_options, diagonal_constraint):
     print('Solving with naked pairs!')
-    done = False
+    global row, col, checked_pairs
     pair_list = []
     key_list = list(sorted(naked_pairs_options, key = lambda key: len(naked_pairs_options[key])))
 
@@ -381,119 +305,271 @@ def naked_pairs(naked_pairs_grid, naked_pairs_options, diagonal_constraint):
                 if naked_pairs_options[key_list[key1]] == naked_pairs_options[key_list[key2]] and (key_list[key1][1] == key_list[key2][1] or key_list[key1][3] == key_list[key2][3] or (int(key_list[key1][1]) // 3 == int(key_list[key2][1]) // 3 and int(key_list[key1][3]) // 3 == int(key_list[key2][3]) // 3)):
                     pair_list.append((key_list[key1], key_list[key2]))
 
-                    if len(naked_pairs_options[key_list[key2 + 1]]) == 3:
-                        done = True
+                if key_list[key2] != key_list[-1]:
+                    if len(naked_pairs_options[key_list[key2 + 1]]) > 2:
                         break
 
-        if done:
+        if len(naked_pairs_options[key_list[key1 + 1]]) > 2:
             break
 
     for pair in pair_list:
-        #Remove the pair from the other cells in the same row
-        if pair[0][1] == pair[1][1]:
-            for key in range(len(key_list)):
-                if key_list[key][1] == pair[0][1] and key_list[key] != pair[0] and key_list[key] != pair[1]:
-                    for num in naked_pairs_options[pair[0]]:
-                        if num in naked_pairs_options[key_list[key]]:
-                            print(f'Removing {num} from cell {key_list[key]}, because of {pair[1][0], pair[1][1]} pair {pair[0]} and {pair[1]} in row {pair[0][1]}')
-                            naked_pairs_options[key_list[key]].remove(num)
+        if pair not in checked_pairs:
+            checked_pairs.append(pair)
+            #Remove the pair from the other cells in the same row
+            if pair[0][1] == pair[1][1]:
+                for key in range(len(key_list)):
+                    if key_list[key][1] == pair[0][1] and key_list[key] != pair[0] and key_list[key] != pair[1]:
+                        for num in naked_pairs_options[pair[0]]:
+                            if num in naked_pairs_options[key_list[key]]:
+                                print(f'Removing {num} from cell {key_list[key]}, because of {pair[0]} and {pair[1]} in row {pair[0][1]}')
+                                naked_pairs_options[key_list[key]].remove(num)
 
-                            if len(naked_pairs_options[key_list[key]]) == 1:
-                                row = int(key_list[key][1])
-                                col = int(key_list[key][3])
+                                if len(naked_pairs_options[key_list[key]]) == 1:
+                                    r = int(key_list[key][1])
+                                    c = int(key_list[key][3])
 
-                                if naked_pairs_grid[row][col] == 0:
-                                    if valid_value(naked_pairs_grid, row, col, naked_pairs_options[key_list[key]][0], diagonal_constraint):
-                                        print(f'{naked_pairs_options[key_list[key]][0]} in cell {key_list[key]}')
-                                        naked_pairs_grid[row][col] = naked_pairs_options[key_list[key]][0]
-                                        Window.fill((255,182,193))
-                                        draw_lines()
-                                        highlight_box()
-                                        pygame.display.update()
-                                        pygame.time.delay(20)
-                                        naked_pairs_options.pop(key_list[key])
+                                    if naked_pairs_grid[r][c] == 0:
+                                        if valid_value(naked_pairs_grid, r, c, naked_pairs_options[key_list[key]][0], diagonal_constraint):
+                                            row = r
+                                            col = c                                
+                                            fill_value(num)
+                                            print(f'{naked_pairs_options[key_list[key]][0]} in cell {key_list[key]}')
+                                            naked_pairs_grid[row][col] = naked_pairs_options[key_list[key]][0]
+                                            Window.fill((255,182,193))
+                                            draw_lines()
+                                            highlight_box()
+                                            pygame.display.update()
+                                            pygame.time.delay(20)
+                                            naked_pairs_options.pop(key_list[key])
+                                            naked_pairs_options = update_options(naked_pairs_grid, naked_pairs_options, diagonal_constraint)
 
-        #Remove the pair from the other cells in the same column
-        if pair[0][3] == pair[1][3]:
-            for key in range(len(key_list)):
-                if key_list[key][3] == pair[0][3] and key_list[key] != pair[0] and key_list[key] != pair[1]:
-                    for num in naked_pairs_options[pair[0]]:
-                        if num in naked_pairs_options[key_list[key]]:
-                            print(f'Removing {num} from {key_list[key]}, because of {pair[0]} and {pair[1]} in column {pair[0][3]}')
-                            naked_pairs_options[key_list[key]].remove(num)
+            #Remove the pair from the other cells in the same column
+            if pair[0][3] == pair[1][3]:
+                for key in range(len(key_list)):
+                    if key_list[key][3] == pair[0][3] and key_list[key] != pair[0] and key_list[key] != pair[1]:
+                        for num in naked_pairs_options[pair[0]]:
+                            if num in naked_pairs_options[key_list[key]]:
+                                print(f'Removing {num} from {key_list[key]}, because of {pair[0]} and {pair[1]} in column {pair[0][3]}')
+                                naked_pairs_options[key_list[key]].remove(num)
 
-                            if len(naked_pairs_options[key_list[key]]) == 1:
-                                row = int(key_list[key][1])
-                                col = int(key_list[key][3])
+                                if len(naked_pairs_options[key_list[key]]) == 1:
+                                    r = int(key_list[key][1])
+                                    c = int(key_list[key][3])
 
-                                if naked_pairs_grid[row][col] == 0:
-                                    if valid_value(naked_pairs_grid, row, col, naked_pairs_options[key_list[key]][0], diagonal_constraint):
-                                        print(f'{naked_pairs_options[key_list[key]][0]} in cell {key_list[key]}')
-                                        naked_pairs_grid[row][col] = naked_pairs_options[key_list[key]][0]
-                                        Window.fill((255,182,193))
-                                        draw_lines()
-                                        highlight_box()
-                                        pygame.display.update()
-                                        pygame.time.delay(20)
-                                        naked_pairs_options.pop(key_list[key])
+                                    if naked_pairs_grid[r][c] == 0:
+                                        if valid_value(naked_pairs_grid, r, c, naked_pairs_options[key_list[key]][0], diagonal_constraint):
+                                            row = r
+                                            col = c                                
+                                            fill_value(num)
+                                            print(f'{naked_pairs_options[key_list[key]][0]} in cell {key_list[key]}')
+                                            naked_pairs_grid[row][col] = naked_pairs_options[key_list[key]][0]
+                                            Window.fill((255,182,193))
+                                            draw_lines()
+                                            highlight_box()
+                                            pygame.display.update()
+                                            pygame.time.delay(20)
+                                            naked_pairs_options.pop(key_list[key])
+                                            naked_pairs_options = update_options(naked_pairs_grid, naked_pairs_options, diagonal_constraint)
 
-        #Remove the pair from the other cells in the same box
-        if int(pair[0][1]) // 3 == int(pair[1][1]) // 3 and int(pair[0][3]) // 3 == int(pair[1][3]) // 3:
-            for key in range(len(key_list)):
-                if int(key_list[key][1]) // 3 == int(pair[0][1]) // 3 and int(key_list[key][3]) // 3 == int(pair[0][3]) // 3 and key_list[key] != pair[0] and key_list[key] != pair[1]:
-                    for num in naked_pairs_options[pair[0]]:
-                        if num in naked_pairs_options[key_list[key]]:
-                            box_row = int(pair[0][1]) // 3
-                            box_col = int(pair[0][3]) // 3
+            #Remove the pair from the other cells in the same box
+            if int(pair[0][1]) // 3 == int(pair[1][1]) // 3 and int(pair[0][3]) // 3 == int(pair[1][3]) // 3:
+                for key in range(len(key_list)):
+                    if int(key_list[key][1]) // 3 == int(pair[0][1]) // 3 and int(key_list[key][3]) // 3 == int(pair[0][3]) // 3 and key_list[key] != pair[0] and key_list[key] != pair[1]:
+                        for num in naked_pairs_options[pair[0]]:
+                            if num in naked_pairs_options[key_list[key]]:
+                                box_row = int(pair[0][1]) // 3
+                                box_col = int(pair[0][3]) // 3
 
-                            if box_row == 0:
-                                if box_col == 0:
-                                    box_num = 0
-                                elif box_col == 1:
-                                    box_num = 1
+                                if box_row == 0:
+                                    if box_col == 0:
+                                        box_num = 0
+                                    elif box_col == 1:
+                                        box_num = 1
+                                    else:
+                                        box_num = 2
+                                elif box_row == 1:
+                                    if box_col == 0:
+                                        box_num = 3
+                                    elif box_col == 1:
+                                        box_num = 4
+                                    else:
+                                        box_num = 5
                                 else:
-                                    box_num = 2
-                            elif box_row == 1:
-                                if box_col == 0:
-                                    box_num = 3
-                                elif box_col == 1:
-                                    box_num = 4
-                                else:
-                                    box_num = 5
-                            else:
-                                if box_col == 0:
-                                    box_num = 6
-                                elif box_col == 1:
-                                    box_num = 7
-                                else:
-                                    box_num = 8
+                                    if box_col == 0:
+                                        box_num = 6
+                                    elif box_col == 1:
+                                        box_num = 7
+                                    else:
+                                        box_num = 8
 
-                            print(f'Removing {num} from {key_list[key]}, because of {pair[0]} and {pair[1]} in box {box_num}')
-                            naked_pairs_options[key_list[key]].remove(num)
+                                print(f'Removing {num} from {key_list[key]}, because of {pair[0]} and {pair[1]} in box {box_num}')
+                                naked_pairs_options[key_list[key]].remove(num)
 
-                            if len(naked_pairs_options[key_list[key]]) == 1:
-                                row = int(key_list[key][1])
-                                col = int(key_list[key][3])
+                                if len(naked_pairs_options[key_list[key]]) == 1:
+                                    r = int(key_list[key][1])
+                                    c = int(key_list[key][3])
 
-                                if naked_pairs_grid[row][col] == 0:
-                                    if valid_value(naked_pairs_grid, row, col, naked_pairs_options[key_list[key]][0], diagonal_constraint):
-                                        print(f'{naked_pairs_options[key_list[key]][0]} in cell {key_list[key]}')
-                                        naked_pairs_grid[row][col] = naked_pairs_options[key_list[key]][0]
-                                        Window.fill((255,182,193))
-                                        draw_lines()
-                                        highlight_box()
-                                        pygame.display.update()
-                                        pygame.time.delay(20)
-                                        naked_pairs_options.pop(key_list[key])
+                                    if naked_pairs_grid[r][c] == 0:
+                                        if valid_value(naked_pairs_grid, r, c, naked_pairs_options[key_list[key]][0], diagonal_constraint):
+                                            row = r
+                                            col = c                                
+                                            fill_value(num)
+                                            print(f'{naked_pairs_options[key_list[key]][0]} in cell {key_list[key]}')
+                                            naked_pairs_grid[row][col] = naked_pairs_options[key_list[key]][0]
+                                            Window.fill((255,182,193))
+                                            draw_lines()
+                                            highlight_box()
+                                            pygame.display.update()
+                                            pygame.time.delay(20)
+                                            naked_pairs_options.pop(key_list[key])
+                                            naked_pairs_options = update_options(naked_pairs_grid, naked_pairs_options, diagonal_constraint)
 
     return naked_pairs_grid, naked_pairs_options
 
 def naked_triples(naked_triples_grid, naked_triples_options, diagonal_constraint):
     print('Solving with naked triples')
-    key_list = list(naked_triples_options.keys())
+    global row, col, checked_triples
+    triples_list = []
+    key_list = list(sorted(naked_triples_options, key = lambda key: len(naked_triples_options[key])))
 
-    # for key in key_list:
+    for key1 in range(len(key_list) - 2):
+        if len(naked_triples_options[key_list[key1]]) <= 3:
+            for key2 in range(key1 + 1, len(key_list) - 1):
+                if len(naked_triples_options[key_list[key2]]) <= 3 and (key_list[key1][1] == key_list[key2][1] or key_list[key1][3] == key_list[key2][3] or (int(key_list[key1][1]) // 3 == int(key_list[key2][1]) // 3 and int(key_list[key1][3]) // 3 == int(key_list[key2][3]) // 3)):
+                    for key3 in range(key2 + 1, len(key_list)):
+                        if len(naked_triples_options[key_list[key3]]) <= 3:
+                            if key_list[key1][1] == key_list[key2][1]:
+                                if key_list[key1][1] == key_list[key3][1]:
+                                    candidates = list(set(naked_triples_options[key_list[key1]] + naked_triples_options[key_list[key2]] + naked_triples_options[key_list[key3]]))
 
+                                    if len(candidates) == 3:
+                                        print(f'Triple found: {key_list[key1]}, {key_list[key2]}, {key_list[key3]}')
+                                        print(f'Candidates are: {candidates}')
+                                        triples_list.append([key_list[key1], key_list[key2], key_list[key3]])
+
+                        if key_list[key3] != key_list[-1]:
+                            if len(naked_triples_options[key_list[key3 + 1]]) > 3:
+                                break
+
+                if len(naked_triples_options[key_list[key2 + 1]]) > 3:
+                    break
+        
+        if len(naked_triples_options[key_list[key1 + 1]]) > 3:
+            break
+
+    for triple in triples_list:
+        if triple not in checked_triples:
+            checked_triples.append(triple)
+            nums = list(set(naked_triples_options[triple[0]] + naked_triples_options[triple[1]] + naked_triples_options[triple[2]]))
+
+            #Remove the triple from the other cells in the same row
+            if triple[0][1] == triple[1][1] and triple[0][1] == triple[2][1]:
+                for key in range(len(key_list)):
+                    if key_list[key][1] == triple[0][1] and key_list[key] != triple[0] and key_list[key] != triple[1] and key_list[key] != triple[2]:
+                        for num in nums:
+                            if num in naked_triples_options[key_list[key]]:
+                                print(f'Removing {num} from {key_list[key]}, because of {triple[0]}, {triple[1]} and {triple[2]} in row {triple[0][1]}')
+                                naked_triples_options[key_list[key]].remove(num)
+
+                                if len(naked_triples_options[key_list[key]]) == 1:
+                                    r = int(key_list[key][1])
+                                    c = int(key_list[key][3])
+
+                                    if naked_triples_grid[r][c] == 0:
+                                        if valid_value(naked_triples_grid, r, c, naked_triples_options[key_list[key]][0], diagonal_constraint):
+                                            row = r
+                                            col = c                                
+                                            fill_value(num)
+                                            print(f'{naked_triples_options[key_list[key]][0]} in cell {key_list[key]}')
+                                            naked_triples_grid[row][col] = naked_triples_options[key_list[key]][0]
+                                            Window.fill((255,182,193))
+                                            draw_lines()
+                                            highlight_box()
+                                            pygame.display.update()
+                                            pygame.time.delay(20)
+                                            naked_triples_options.pop(key_list[key])
+                                            naked_triples_options = update_options(naked_triples_grid, naked_triples_options, diagonal_constraint)
+
+            #Remove the triple from the other cells in the same column
+            if triple[0][3] == triple[1][3] and triple[0][3] == triple[2][3]:
+                for key in range(len(key_list)):
+                    if key_list[key][3] == triple[0][3] and key_list[key] != triple[0] and key_list[key] != triple[1] and key_list[key] != triple[2]:
+                        for num in nums:
+                            if num in naked_triples_options[key_list[key]]:
+                                print(f'Removing {num} from {key_list[key]}, because of {triple[0]}, {triple[1]} and {triple[2]} in column {triple[0][3]}')
+                                naked_triples_options[key_list[key]].remove(num)
+
+                                if len(naked_triples_options[key_list[key]]) == 1:
+                                    r = int(key_list[key][1])
+                                    c = int(key_list[key][3])
+
+                                    if naked_triples_grid[r][c] == 0:
+                                        if valid_value(naked_triples_grid, r, c, naked_triples_options[key_list[key]][0], diagonal_constraint):
+                                            row = r
+                                            col = c                                
+                                            fill_value(num)
+                                            print(f'{naked_triples_options[key_list[key]][0]} in cell {key_list[key]}')
+                                            naked_triples_grid[row][col] = naked_triples_options[key_list[key]][0]
+                                            Window.fill((255,182,193))
+                                            draw_lines()
+                                            highlight_box()
+                                            pygame.display.update()
+                                            pygame.time.delay(20)
+                                            naked_triples_options.pop(key_list[key])
+                                            naked_triples_options = update_options(naked_triples_grid, naked_triples_options, diagonal_constraint)
+
+            #Remove the triple from the other cells in the same box
+            if int(triple[0][1]) // 3 == int(triple[1][1]) // 3 and int(triple[0][3]) // 3 == int(triple[1][3]) // 3 and int(triple[0][1]) // 3 == int(triple[2][1]) // 3 and int(triple[0][3]) // 3 == int(triple[2][3]) // 3:
+                for key in range(len(key_list)):
+                    if int(key_list[key][1]) // 3 == int(triple[0][1]) // 3 and int(key_list[key][3]) // 3 == int(triple[0][3]) // 3 and key_list[key] != triple[0] and key_list[key] != triple[1] and key_list[key] != triple[2]:
+                        for num in nums:
+                            if num in naked_triples_options[key_list[key]]:
+                                box_row = int(triple[0][1]) // 3
+                                box_col = int(triple[0][3]) // 3
+
+                                if box_row == 0:
+                                    if box_col == 0:
+                                        box_num = 0
+                                    elif box_col == 1:
+                                        box_num = 1
+                                    else:
+                                        box_num = 2
+                                elif box_row == 1:
+                                    if box_col == 0:
+                                        box_num = 3
+                                    elif box_col == 1:
+                                        box_num = 4
+                                    else:
+                                        box_num = 5
+                                else:
+                                    if box_col == 0:
+                                        box_num = 6
+                                    elif box_col == 1:
+                                        box_num = 7
+                                    else:
+                                        box_num = 8
+
+                                print(f'Removing {num} from {key_list[key]}, because of {triple[0]}, {triple[1]} and {triple[2]} in box {box_num}')
+                                naked_triples_options[key_list[key]].remove(num)
+
+                                if len(naked_triples_options[key_list[key]]) == 1:
+                                    r = int(key_list[key][1])
+                                    c = int(key_list[key][3])
+
+                                    if naked_triples_grid[r][c] == 0:
+                                        if valid_value(naked_triples_grid, r, c, naked_triples_options[key_list[key]][0], diagonal_constraint):
+                                            row = r
+                                            col = c                                
+                                            fill_value(num)
+                                            print(f'{naked_triples_options[key_list[key]][0]} in cell {key_list[key]}')
+                                            naked_triples_grid[row][col] = naked_triples_options[key_list[key]][0]
+                                            Window.fill((255,182,193))
+                                            draw_lines()
+                                            highlight_box()
+                                            pygame.display.update()
+                                            pygame.time.delay(20)
+                                            naked_triples_options.pop(key_list[key])
+                                            naked_triples_options = update_options(naked_triples_grid, naked_triples_options, diagonal_constraint)
 
     return naked_triples_grid, naked_triples_options
 
@@ -522,7 +598,7 @@ def solve_brute_force(brute_force_grid, i, j, line, diagonal_constraint):
     for it in range(1, 10):
         if valid_value(brute_force_grid, i, j, it, diagonal_constraint) == True:
             brute_force_grid[i][j] = it
-            global col, row
+            global row, col
             row = i
             col = j
             Window.fill((255,182,193))
@@ -613,6 +689,7 @@ while flag:
                 rs = 0
                 error = 0
                 flag2 = 0
+                checked_pairs = []
                 #003
                 default_grid = [
                     [0, 0, 3, 0, 0, 0, 6, 0, 0],
@@ -629,6 +706,7 @@ while flag:
                 rs = 0
                 error = 0
                 flag2 = 0
+                checked_pairs = []
                 #004
                 default_grid = [
                     [8, 0, 0, 0, 0, 4, 0, 0, 1],
@@ -645,6 +723,7 @@ while flag:
                 rs = 0
                 error = 0
                 flag2 = 0
+                checked_pairs = []
                 #005
                 default_grid = [
                     [0, 0, 0, 0, 0, 4, 7, 0, 5],
@@ -661,6 +740,7 @@ while flag:
                 rs = 0
                 error = 0
                 flag2 = 0
+                checked_pairs = []
                 #006
                 default_grid = [
                     [0, 0, 6, 1, 4, 9, 0, 0, 0],
@@ -678,6 +758,7 @@ while flag:
                 rs = 0
                 error = 0
                 flag2 = 0
+                checked_pairs = []
                 default_grid = [
                     [0, 0, 0, 0, 0, 0, 0, 0, 0],
                     [0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -693,35 +774,42 @@ while flag:
                 rs = 0
                 error = 0
                 flag2 = 0
+                checked_pairs = []
                 default_grid =[
-                    [1, 0, 0, 0, 0, 9, 0, 0, 2],
-                    [0, 0, 9, 0, 2, 0, 0, 7, 0],
-                    [0, 0, 0, 0, 0, 8, 4, 0, 9],
-                    [0, 0, 2, 5, 0, 0, 0, 0, 8],
-                    [0, 7, 0, 2, 0, 4, 0, 5, 0],
-                    [4, 0, 0, 0, 0, 7, 9, 0, 0],
-                    [9, 0, 1, 8, 0, 0, 0, 0, 0],
-                    [0, 6, 0, 0, 3, 0, 8, 0, 0],
-                    [3, 0, 0, 9, 0, 0, 0, 0, 4]
+                    [0, 7, 0, 0, 0, 8, 0, 2, 9],
+                    [0, 0, 2, 0, 0, 0, 0, 0, 4],
+                    [8, 5, 4, 0, 2, 0, 0, 0, 0],
+                    [0, 0, 8, 3, 7, 4, 2, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 3, 2, 6, 1, 7, 0, 0],
+                    [0, 0, 0, 0, 9, 0, 6, 1, 2],
+                    [2, 0, 0, 0, 0, 0, 4, 0, 0],
+                    [1, 3, 0, 6, 0, 0, 0, 7, 0]
                 ]
     if flag2 == 1:
         start_time = time.time()
+        solved = False
 
         if brute_force == 'y':
             if solve_brute_force(default_grid , 0, 0, col_or_row, diagonal) == False:
                 error = 1
             else:
+                solved = True
                 rs = 1
         else:
             if solve_pencilmark(default_grid, diagonal) == False:
                 error = 1
             else:
+                solved = True
                 rs = 1
             
         flag2 = 0
-        end_time = time.time()
-        total_time = (end_time - start_time)
-        print('It took ' + str(total_time) + ' seconds to solve the game')
+        if solved:
+            end_time = time.time()
+            total_time = (end_time - start_time)
+            print('It took ' + str(total_time) + ' seconds to solve the game')
+        else:
+            print('No solution found')
 
     if value != 0:           
         fill_value(value)
