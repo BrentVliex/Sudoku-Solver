@@ -12,15 +12,15 @@ col = 0
 diff = 500 / 9
 value = 0
 default_grid =[
-            [0, 7, 0, 0, 0, 8, 0, 2, 9],
-            [0, 0, 2, 0, 0, 0, 0, 0, 4],
-            [8, 5, 4, 0, 2, 0, 0, 0, 0],
-            [0, 0, 8, 3, 7, 4, 2, 0, 0],
             [0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 3, 2, 6, 1, 7, 0, 0],
-            [0, 0, 0, 0, 9, 0, 6, 1, 2],
-            [2, 0, 0, 0, 0, 0, 4, 0, 0],
-            [1, 3, 0, 6, 0, 0, 0, 7, 0]
+            [2, 3, 1, 0, 9, 0, 0, 0, 0],
+            [0, 6, 5, 0, 0, 3, 1, 0, 0],
+            [0, 0, 8, 9, 2, 4, 0, 0, 0],
+            [1, 0, 0, 0, 5, 0, 0, 0, 6],
+            [0, 0, 0, 1, 3, 6, 7, 0, 0],
+            [0, 0, 9, 3, 0, 0, 5, 7, 0],
+            [0, 0, 0, 0, 1, 0, 8, 4, 3],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0]
         ]
 checked_pairs = []
 checked_triples = []
@@ -109,7 +109,7 @@ def update_options(grid, options, diagonal_constraint):
     return options
 
 def solve_pencilmark(pencilmark_grid, diagonal_constraint, options = {},):
-    print(10 * '=', "Solving with pencilmarks!", 10 * '=')
+    print(10 * '=', "Solving with pencilmarks", 10 * '=')
     #Get all options for the empty cells
     if options == {}:
         for r in range(9):
@@ -195,17 +195,43 @@ def solve_pencilmark(pencilmark_grid, diagonal_constraint, options = {},):
 
     if new_grid != copy_grid or new_options != copy_options:
         solve_pencilmark(pencilmark_grid, diagonal_constraint, options)
+        return
 
     #Solving the sudoku with hidden pairs
     times = sum([row.count(0) for row in pencilmark_grid])
     if times == 0:
         return True
 
+    copy_options = copy.deepcopy(options)
+    new_options = hidden_pairs(options, diagonal_constraint)
+
+    options = new_options
+
+    if new_options != copy_options:
+        solve_pencilmark(pencilmark_grid, diagonal_constraint, options)
+        return
+
+    #Solving the sudoku with hidden triples
+    times = sum([row.count(0) for row in pencilmark_grid])
+    if times == 0:
+        return True
+
+    copy_options = copy.deepcopy(options)
+    new_options = hidden_triples(options, diagonal_constraint)
+
+    options = new_options
+
+    if new_options != copy_options:
+        solve_pencilmark(pencilmark_grid, diagonal_constraint, options)
+        return
+
+    #Solving the sudoku with pointing pairs
+    times = sum([row.count(0) for row in pencilmark_grid])
+    if times == 0:
+        return True
+
     '''
     TO DO:
-    - Naked triples
-    - Hidden pairs
-    - Hidden triples
     - Pointing pairs
     - Box/line reduction
     '''
@@ -213,15 +239,15 @@ def solve_pencilmark(pencilmark_grid, diagonal_constraint, options = {},):
     return False
 
 def hidden_singles(hidden_singels_grid, hidden_singels_options, diagonal_constraint):
-    print('Solving with hidden singels!')
+    print('Solving with hidden singels')
     key_list = list(hidden_singels_options.keys())
 
-    def check_list(list, grid, options, other_list1, other_list2):
+    def check_list(check_list, grid, options, other_list1, other_list2):
         for num in range(1, 10):
-            times = sum([cell[1].count(num) for cell in list])
+            times = sum([cell[1].count(num) for cell in check_list])
             
             if times == 1:
-                for cell in list:
+                for cell in check_list:
                     if cell[1].count(num) == 1:
                         r = int(cell[0][1])
                         c = int(cell[0][3])
@@ -242,10 +268,13 @@ def hidden_singles(hidden_singels_grid, hidden_singels_options, diagonal_constra
                                 options.pop(cell[0])
                                 options = update_options(grid, options, diagonal_constraint)
 
-                                if cell[0] in other_list1:
-                                    other_list1.remove(cell[0])
-                                if cell[0] in other_list2:
-                                    other_list2.remove(cell[0])
+                                for other_cell in other_list1:
+                                    if other_cell[0] == cell[0]:
+                                        other_list1.remove(other_cell)
+
+                                for other_cell in other_list2:
+                                    if other_cell[0] == cell[0]:
+                                        other_list2.remove(other_cell)
 
                         break
         return grid, options, other_list1, other_list2
@@ -294,7 +323,7 @@ def hidden_singles(hidden_singels_grid, hidden_singels_options, diagonal_constra
     return hidden_singels_grid, hidden_singels_options        
 
 def naked_pairs(naked_pairs_grid, naked_pairs_options, diagonal_constraint):
-    print('Solving with naked pairs!')
+    print('Solving with naked pairs')
     global row, col, checked_pairs
     pair_list = []
     key_list = list(sorted(naked_pairs_options, key = lambda key: len(naked_pairs_options[key])))
@@ -438,13 +467,28 @@ def naked_triples(naked_triples_grid, naked_triples_options, diagonal_constraint
                 if len(naked_triples_options[key_list[key2]]) <= 3 and (key_list[key1][1] == key_list[key2][1] or key_list[key1][3] == key_list[key2][3] or (int(key_list[key1][1]) // 3 == int(key_list[key2][1]) // 3 and int(key_list[key1][3]) // 3 == int(key_list[key2][3]) // 3)):
                     for key3 in range(key2 + 1, len(key_list)):
                         if len(naked_triples_options[key_list[key3]]) <= 3:
+                            #Check if triple is in the same row
                             if key_list[key1][1] == key_list[key2][1]:
                                 if key_list[key1][1] == key_list[key3][1]:
                                     candidates = list(set(naked_triples_options[key_list[key1]] + naked_triples_options[key_list[key2]] + naked_triples_options[key_list[key3]]))
 
                                     if len(candidates) == 3:
-                                        print(f'Triple found: {key_list[key1]}, {key_list[key2]}, {key_list[key3]}')
-                                        print(f'Candidates are: {candidates}')
+                                        triples_list.append([key_list[key1], key_list[key2], key_list[key3]])
+
+                            #Check if triple is in the same column
+                            if key_list[key1][3] == key_list[key2][3]:
+                                if key_list[key1][3] == key_list[key3][3]:
+                                    candidates = list(set(naked_triples_options[key_list[key1]] + naked_triples_options[key_list[key2]] + naked_triples_options[key_list[key3]]))
+
+                                    if len(candidates) == 3:
+                                        triples_list.append([key_list[key1], key_list[key2], key_list[key3]])
+
+                            #Check if triple is in the same box
+                            if int(key_list[key1][1]) // 3 == int(key_list[key2][1]) // 3 and int(key_list[key1][3]) // 3 == int(key_list[key2][3]) // 3:
+                                if int(key_list[key1][1]) // 3 == int(key_list[key3][1]) // 3 and int(key_list[key1][3]) // 3 == int(key_list[key3][3]) // 3:
+                                    candidates = list(set(naked_triples_options[key_list[key1]] + naked_triples_options[key_list[key2]] + naked_triples_options[key_list[key3]]))
+
+                                    if len(candidates) == 3:
                                         triples_list.append([key_list[key1], key_list[key2], key_list[key3]])
 
                         if key_list[key3] != key_list[-1]:
@@ -572,6 +616,173 @@ def naked_triples(naked_triples_grid, naked_triples_options, diagonal_constraint
                                             naked_triples_options = update_options(naked_triples_grid, naked_triples_options, diagonal_constraint)
 
     return naked_triples_grid, naked_triples_options
+
+def hidden_pairs(hidden_pairs_options, diagonal_constraint):
+    print('Solving with hidden pairs')
+    key_list = list(hidden_pairs_options.keys())
+
+    def check_list(check_list, options):
+        appearances = {}
+        
+        for i in range(1, 10):
+            times = sum([cell[1].count(i) for cell in check_list])
+
+            if times == 2:
+                appearances[i] = []
+                for cell in check_list:
+                    if i in cell[1]:
+                        appearances[i].append(cell[0])
+
+        appearances_keys = list(appearances.keys())
+        
+        for key in appearances_keys:
+            appearances[key] = list(sorted(appearances[key]))
+
+        for key1 in range(len(appearances_keys) - 1):
+            for key2 in range(key1 + 1, len(appearances_keys)):
+                if appearances[appearances_keys[key1]] == appearances[appearances_keys[key2]]:
+                    for cell in appearances[appearances_keys[key1]]:
+                        #Remove the options for the first cell
+                        cell_options = list(options[cell])
+
+                        for num in cell_options:
+                            if num != appearances_keys[key1] and num != appearances_keys[key2]:
+                                print(f'Removing {num} from {cell}, because of hidden pair {appearances_keys[key1]} and {appearances_keys[key2]} in cells {appearances[appearances_keys[key1]][0]} and {appearances[appearances_keys[key1]][1]}')
+                                options[cell].remove(num)
+
+        return options
+
+    for i in range(9):
+        key_list = list(hidden_pairs_options.keys())
+        row_list = []
+        col_list = []
+        box_list = []
+
+        for key in key_list:
+            if key[1] == str(i):
+                row_list.append((key, hidden_pairs_options[key]))
+            if key[3] == str(i):
+                col_list.append((key, hidden_pairs_options[key]))
+            if (int(key[1]) // 3) * 3 + (int(key[3]) // 3) == i:
+                box_list.append((key, hidden_pairs_options[key]))
+
+        copy_options = copy.deepcopy(hidden_pairs_options)   
+
+        new_options = check_list(row_list, hidden_pairs_options)
+
+        if new_options != copy_options:
+            hidden_pairs_options == new_options
+
+        copy_options = copy.deepcopy(hidden_pairs_options)
+
+        new_options = check_list(col_list, hidden_pairs_options)
+
+        if new_options != copy_options:
+            hidden_pairs_options == new_options
+
+        copy_options = copy.deepcopy(hidden_pairs_options)
+
+        new_options= check_list(box_list, hidden_pairs_options)
+
+        if new_options != copy_options:
+            hidden_pairs_options == new_options
+
+    return hidden_pairs_options
+
+def hidden_triples(hidden_triples_options, diagonal_constraint):
+    print('Solving with hidden triples')
+    key_list = list(hidden_triples_options.keys())
+
+    def check_list(check_list, options):
+        print('Check_list:\n', check_list)
+        appearances = {}
+        
+        for i in range(1, 10):
+            times = sum([cell[1].count(i) for cell in check_list])
+
+            if 2 <= times <= 3:
+                appearances[i] = []
+                for cell in check_list:
+                    if i in cell[1]:
+                        appearances[i].append(cell[0])
+                
+                if times == 2:
+                    print(f'{i} appears in cells {appearances[i][0]} and {appearances[i][1]}')
+                elif times == 3:
+                    print(f'{i} appears in cells {appearances[i][0]}, {appearances[i][1]} and {appearances[i][2]}')
+
+        print(appearances)
+
+        appearances_keys = list(appearances.keys())
+        
+        for key in appearances_keys:
+            appearances[key] = list(sorted(appearances[key]))
+
+        for key1 in range(len(appearances_keys) - 2):
+            for key2 in range(key1 + 1, len(appearances_keys)):
+                for key3 in range(key2 + 1, len(appearances_keys)):
+                    cells = list(set(appearances[appearances_keys[key1]] + appearances[appearances_keys[key2]] + appearances[appearances_keys[key3]]))
+
+                    if len(cells) == 3:
+                        if 'r8c3' in cells and 'r8c4' in cells and 'r8c5' in cells:
+                            a = 1
+                            pass
+
+                        for cell in cells:
+                            #Remove the options for the cells
+                            cell_options = list(options[cell])
+
+                            for num in cell_options:
+                                if num != appearances_keys[key1] and num != appearances_keys[key2] and num != appearances_keys[key3]:
+                                    print(f'Removing {num} from {cell}, because of hidden triple {appearances_keys[key1]}, {appearances_keys[key2]} and {appearances_keys[key3]} in cells {cells[0]}, {cells[1]} and {cells[2]}')
+                                    options[cell].remove(num)
+
+                            print(options[cell])
+
+        return options
+
+    for i in range(9):
+        key_list = list(hidden_triples_options.keys())
+        row_list = []
+        col_list = []
+        box_list = []
+
+        for key in key_list:
+            if key[1] == str(i):
+                row_list.append((key, hidden_triples_options[key]))
+            if key[3] == str(i):
+                col_list.append((key, hidden_triples_options[key]))
+            if (int(key[1]) // 3) * 3 + (int(key[3]) // 3) == i:
+                box_list.append((key, hidden_triples_options[key]))
+
+        copy_options = copy.deepcopy(hidden_triples_options)   
+
+        print('row_list', i)
+
+        new_options = check_list(row_list, hidden_triples_options)
+
+        if new_options != copy_options:
+            hidden_triples_options == new_options
+
+        copy_options = copy.deepcopy(hidden_triples_options)
+
+        print('col_list', i )
+
+        new_options = check_list(col_list, hidden_triples_options)
+
+        if new_options != copy_options:
+            hidden_triples_options == new_options
+
+        copy_options = copy.deepcopy(hidden_triples_options)
+
+        print('box_list', i)
+
+        new_options = check_list(box_list, hidden_triples_options)
+
+        if new_options != copy_options:
+            hidden_triples_options == new_options
+
+    return hidden_triples_options
 
 def solve_brute_force(brute_force_grid, i, j, line, diagonal_constraint):
     if line == 'r':
@@ -829,5 +1040,5 @@ while flag:
         highlight_box()
              
     pygame.display.update() 
-   
+
 pygame.quit()
